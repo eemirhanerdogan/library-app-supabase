@@ -41,4 +41,8 @@ class AuthRepository {
             .select { filter { eq("user_id", userId) } }
             .decodeSingle<Profile>()
     }.getOrNull()
+
+    suspend fun signOut() {
+        supabase.auth.signOut()
+    }
 }
