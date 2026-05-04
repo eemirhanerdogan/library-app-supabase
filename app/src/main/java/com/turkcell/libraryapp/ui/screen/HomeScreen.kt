@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,15 +29,18 @@ import com.turkcell.libraryapp.ui.viewmodel.BookViewModel
 @Composable
 fun HomeScreen(
     authViewModel: AuthViewModel,
-    bookViewModel: BookViewModel
+    bookViewModel: BookViewModel,
+    onNavigateToBorrowRecords: () -> Unit
 ) {
     val profileState by authViewModel.profile.collectAsState()
     val books by bookViewModel.books.collectAsState()
     val isLoading by bookViewModel.isLoading.collectAsState()
+    val isBorrowing by bookViewModel.isBorrowing.collectAsState()
     val searchQuery by bookViewModel.searchQuery.collectAsState()
     val context = LocalContext.current
 
     var bookToEdit by remember { mutableStateOf<Book?>(null) }
+    var bookToBorrow by remember { mutableStateOf<Book?>(null) }
 
     if (bookToEdit != null) {
         EditBookDialog(
@@ -48,6 +52,26 @@ fun HomeScreen(
                     onSuccess = {
                         bookToEdit = null
                         Toast.makeText(context, "Kitap güncellendi", Toast.LENGTH_SHORT).show()
+                    },
+                    onError = { message ->
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        )
+    }
+
+    if (bookToBorrow != null) {
+        BorrowBookDialog(
+            book = bookToBorrow!!,
+            onDismiss = { bookToBorrow = null },
+            onConfirm = { days ->
+                bookViewModel.borrowBook(
+                    book = bookToBorrow!!,
+                    days = days,
+                    onSuccess = {
+                        bookToBorrow = null
+                        Toast.makeText(context, "Kitap ödünç alındı", Toast.LENGTH_SHORT).show()
                     },
                     onError = { message ->
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -74,7 +98,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Kütüphane",
                                 fontSize = 28.sp,
@@ -89,12 +113,21 @@ fun HomeScreen(
                             )
                         }
                         
-                        IconButton(onClick = { authViewModel.signOut() }) {
-                            Icon(
-                                imageVector = Icons.Default.ExitToApp,
-                                contentDescription = "Çıkış Yap",
-                                tint = MaterialTheme.colorScheme.error
-                            )
+                        Row {
+                            IconButton(onClick = onNavigateToBorrowRecords) {
+                                Icon(
+                                    imageVector = Icons.Default.List,
+                                    contentDescription = "Kiralamalarım",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            IconButton(onClick = { authViewModel.signOut() }) {
+                                Icon(
+                                    imageVector = Icons.Default.ExitToApp,
+                                    contentDescription = "Çıkış Yap",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
 
@@ -142,28 +175,69 @@ fun HomeScreen(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = "Farklı bir arama yapmayı deneyin.",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
                 ) {
-                    items(books, key = { it.id }) { book ->
+                    items(books, key = { it.id ?: "" }) { book ->
                         BookCard(
                             book = book,
-                            onDeleteClick = { bookViewModel.deleteBook(book.id) },
-                            onEditClick = { bookToEdit = book }
+                            onDeleteClick = { book.id?.let { bookViewModel.deleteBook(it) } },
+                            onEditClick = { bookToEdit = book },
+                            onBorrowClick = { bookToBorrow = book },
+                            isBorrowing = isBorrowing
                         )
                     }
                 }
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BorrowBookDialog(
+    book: Book,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var days by remember { mutableStateOf(1) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Ödünç Al: ${book.title}") },
+        text = {
+            Column {
+                Text("Yazar: ${book.author}")
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Kaç gün ödünç almak istiyorsunuz? (Maks 5)")
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    (1..5).forEach { day ->
+                        FilterChip(
+                            selected = days == day,
+                            onClick = { days = day },
+                            label = { Text(day.toString()) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(days) }) {
+                Text("Onayla")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("İptal")
+            }
+        }
+    )
 }
 
 @Composable
@@ -178,7 +252,7 @@ fun EditBookDialog(
     var category by remember { mutableStateOf(book.category) }
     var pageCount by remember { mutableStateOf(book.pageCount.toString()) }
     var totalCopies by remember { mutableStateOf(book.totalCopies.toString()) }
-    var availableCopies by remember { mutableStateOf(book.avaiableCopies.toString()) }
+    var availableCopies by remember { mutableStateOf(book.availableCopies.toString()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -222,7 +296,7 @@ fun EditBookDialog(
                         category = category,
                         pageCount = pageCount.toIntOrNull() ?: book.pageCount,
                         totalCopies = totalCopies.toIntOrNull() ?: book.totalCopies,
-                        avaiableCopies = availableCopies.toIntOrNull() ?: book.avaiableCopies
+                        availableCopies = availableCopies.toIntOrNull() ?: book.availableCopies
                     )
                 )
             }) {

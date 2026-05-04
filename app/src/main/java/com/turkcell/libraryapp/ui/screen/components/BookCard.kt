@@ -18,7 +18,9 @@ import com.turkcell.libraryapp.data.model.Book
 fun BookCard(
     book: Book,
     onDeleteClick: () -> Unit,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onBorrowClick: () -> Unit,
+    isBorrowing: Boolean = false
 ) {
     Card(
         modifier = Modifier
@@ -67,7 +69,7 @@ fun BookCard(
                 }
             }
 
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier.padding(vertical = 12.dp),
                 thickness = 0.5.dp,
                 color = MaterialTheme.colorScheme.outlineVariant
@@ -83,7 +85,7 @@ fun BookCard(
                 }
                 
                 Column(horizontalAlignment = Alignment.End) {
-                    val availableRatio = book.avaiableCopies.toFloat() / book.totalCopies.coerceAtLeast(1)
+                    val availableRatio = book.availableCopies.toFloat() / book.totalCopies.coerceAtLeast(1)
                     val statusColor = when {
                         availableRatio > 0.5f -> Color(0xFF4CAF50)
                         availableRatio > 0f -> Color(0xFFFF9800)
@@ -96,7 +98,7 @@ fun BookCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "${book.avaiableCopies} / ${book.totalCopies}",
+                        text = "${book.availableCopies} / ${book.totalCopies}",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = statusColor
@@ -104,26 +106,52 @@ fun BookCard(
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onEditClick) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Düzenle",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                if (book.availableCopies > 0) {
+                    Button(
+                        onClick = onBorrowClick,
+                        enabled = !isBorrowing,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("ÖDÜNÇ AL", fontSize = 12.sp)
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "STOKTA YOK",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
                 }
-                IconButton(onClick = onDeleteClick) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Sil",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+
+                Row {
+                    IconButton(onClick = onEditClick) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Düzenle",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Sil",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
